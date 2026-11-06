@@ -27,6 +27,8 @@ const PRESETS: Preset[] = [
   { id: '1080p30', label: '1080p 30', detail: 'Mais nitidez, menos fluidez', width: 1920, height: 1080, fps: 30, bitrate: 5_000_000 },
 ];
 
+const DEFAULT_PRESET = PRESETS[1];
+
 // Viewers on a poor connection drop to this layer without affecting anyone else.
 const LOW_LAYER = new VideoPreset(960, 540, 1_200_000, 30);
 
@@ -233,7 +235,7 @@ async function refreshMics() {
 }
 
 function renderPresets() {
-  const chosen = store.get('preset') ?? PRESETS[0].id;
+  const chosen = store.get('preset') ?? DEFAULT_PRESET.id;
   for (const preset of PRESETS) {
     const label = document.createElement('label');
     label.className = 'preset';
@@ -596,7 +598,7 @@ el.chatForm.addEventListener('submit', sendChat);
 el.shareForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const id = new FormData(el.shareForm).get('preset');
-  const preset = PRESETS.find((candidate) => candidate.id === id) ?? PRESETS[0];
+  const preset = PRESETS.find((candidate) => candidate.id === id) ?? DEFAULT_PRESET;
   store.set('preset', preset.id);
   void startShare(preset);
 });
