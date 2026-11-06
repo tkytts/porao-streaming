@@ -1,0 +1,44 @@
+# All three services use host networking: LiveKit has to advertise real
+# interface addresses for WebRTC, and it keeps the port story to "forward these
+# ports on your router". Linux hosts only.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    restart: unless-stopped
+    network_mode: host
+    command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?run ./setup.sh first}: ${LIVEKIT_API_SECRET:?run ./setup.sh first}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+
+  app:
+    build: ./app
+    init: true
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      ROOM_PASSWORD: ${ROOM_PASSWORD:?run ./setup.sh first}
+      SESSION_SECRET: ${SESSION_SECRET:?run ./setup.sh first}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+
+  caddy:
+    image: caddy:2.11.9-alpine
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?run ./setup.sh first}
+      HTTP_PORT: ${HTTP_PORT:-80}
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+      - livekit
+
+volumes:
+  caddy_data:
+  caddy_config:

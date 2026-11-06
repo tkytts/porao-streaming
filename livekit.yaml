@@ -1,0 +1,21 @@
+# API keys come from the LIVEKIT_KEYS environment variable.
+port: 7880
+bind_addresses:
+  - 127.0.0.1
+rtc:
+  tcp_port: 7881 # fallback for friends on networks that block UDP
+  udp_port: 7882 # all UDP media goes through this single port
+  # Finds the public IP over STUN on every start, so a changed home IP only
+  # needs a restart.
+  use_external_ip: true
+  # This check sends a packet to our own public IP. Most home routers don't
+  # loop that back, and a failure silently stops the public IP being advertised.
+  skip_external_ip_validation: true
+  # Keeps LAN addresses as well, so people on the host's network can connect
+  # without going out through the router.
+  advertise_internal_ip: true
+  interfaces:
+    excludes:
+      - docker0
+logging:
+  level: info

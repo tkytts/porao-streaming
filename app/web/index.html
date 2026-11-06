@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>porão</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2312100e'/%3E%3Crect x='4' y='4' width='8' height='8' fill='%23e5483a'/%3E%3C/svg%3E" />
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <main id="gate">
+      <form id="gate-form" autocomplete="on">
+        <h1 class="wordmark">porão</h1>
+        <p id="gate-status" class="gate-status" role="status">Vendo quem está lá embaixo…</p>
+        <label id="password-field" class="field" hidden>
+          <span>Senha</span>
+          <input id="password" type="password" autocomplete="current-password" />
+        </label>
+        <label class="field">
+          <span>Seu nome</span>
+          <input id="name" type="text" maxlength="24" autocomplete="nickname" required />
+        </label>
+        <p id="gate-error" class="error" role="alert" hidden></p>
+        <button id="join" class="button button-primary" type="submit">Descer</button>
+      </form>
+    </main>
+
+    <div id="room" class="room" hidden>
+      <section id="stage" class="stage" aria-label="Transmissão">
+        <video id="video" autoplay playsinline muted hidden></video>
+
+        <div id="idle" class="panel" hidden>
+          <h2>Ninguém está transmitindo.</h2>
+          <form id="share-form">
+            <fieldset id="presets" class="presets">
+              <legend>Qualidade</legend>
+            </fieldset>
+            <button class="button button-primary" type="submit">Compartilhar tela</button>
+            <p class="hint">
+              Para ter o som do jogo, escolha <b>Tela inteira</b> e ative o <b>áudio do sistema</b>.
+              Funciona melhor no Chrome ou Edge no Windows. Compartilhar só uma janela normalmente fica sem som.
+            </p>
+          </form>
+          <p id="share-unsupported" class="hint" hidden>Este navegador pode assistir, mas não compartilhar. Para transmitir, use Chrome ou Edge em um computador.</p>
+        </div>
+
+        <div id="live-self" class="panel" hidden>
+          <h2><span class="live-tag">Ao vivo</span> Você está transmitindo.</h2>
+          <p id="live-self-detail" class="hint"></p>
+          <p id="live-self-audio" class="notice" hidden></p>
+          <button id="stop-share" class="button" type="button">Parar de transmitir</button>
+        </div>
+
+        <div id="stage-bar" class="stage-bar" hidden>
+          <span class="live-tag">Ao vivo</span>
+          <span id="stage-title" class="stage-title"></span>
+          <label class="volume">
+            <span>Volume da transmissão</span>
+            <input id="stream-volume" type="range" min="0" max="1" step="0.01" />
+          </label>
+          <button id="fullscreen" class="button button-small" type="button">Tela cheia <kbd>F</kbd></button>
+        </div>
+      </section>
+
+      <aside class="rail">
+        <header class="rail-head">
+          <span class="wordmark wordmark-small">porão</span>
+          <span id="count" class="count"></span>
+        </header>
+        <p id="banner" class="banner" role="status" hidden></p>
+        <button id="enable-audio" class="banner banner-action" type="button" hidden>O som está bloqueado. Clique para ativar.</button>
+        <ul id="people" class="people"></ul>
+        <div class="controls">
+          <label class="field field-compact">
+            <span>Microfone</span>
+            <select id="mic-select"></select>
+          </label>
+          <div class="control-row">
+            <button id="mute" class="button" type="button" aria-pressed="false"><span id="mute-label">Mutar</span> <kbd>M</kbd></button>
+            <button id="deafen" class="button" type="button" aria-pressed="false"><span id="deafen-label">Desligar som</span> <kbd>D</kbd></button>
+          </div>
+          <button id="leave" class="button button-quiet" type="button">Sair</button>
+        </div>
+      </aside>
+    </div>
+    <div id="audio-sink" hidden></div>
+  </body>
+</html>

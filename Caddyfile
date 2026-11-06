@@ -1,0 +1,27 @@
+# Caddy picks the certificate by itself: Let's Encrypt for a real domain, its
+# own internal CA for an IP address (browsers will show a warning for those).
+{
+	http_port {$HTTP_PORT:80}
+	https_port {$HTTPS_PORT:443}
+	skip_install_trust
+}
+
+{$PUBLIC_HOST} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		-Server
+	}
+
+	# LiveKit signalling only. Its admin API (/twirp) is deliberately not exposed.
+	handle /rtc* {
+		reverse_proxy 127.0.0.1:7880
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy 127.0.0.1:3000
+	}
+}
