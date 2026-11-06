@@ -4,7 +4,7 @@ import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AccessToken, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, DataPacket_Kind, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
 
 const { ROOM_PASSWORD, SESSION_SECRET, LIVEKIT_API_KEY, LIVEKIT_API_SECRET } = process.env;
 for (const [name, value] of Object.entries({ ROOM_PASSWORD, SESSION_SECRET, LIVEKIT_API_KEY, LIVEKIT_API_SECRET })) {
@@ -21,6 +21,10 @@ const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const MAX_FAILURES = 8;
 const FAILURE_WINDOW_MS = 5 * 60 * 1000;
 const DIST = fileURLToPath(new URL('./dist', import.meta.url));
+const CHAT_TOPIC = 'chat';
+const CHAT_MAX_LENGTH = 500;
+const CHAT_MAX_MESSAGES = 500;
+const CHAT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -98,11 +102,13 @@ async function login(req, res) {
   sendJson(res, 200, { ok: true }, { 'set-cookie': cookie });
 }
 
+const cleanDisplayName = (name) => (typeof name === 'string' ? name.replace(/\p{C}/gu, '').trim().slice(0, 24) : '');
+
 async function token(req, res) {
   if (!hasSession(req)) return sendJson(res, 401, { error: 'Você não está logado.' });
 
   const { name } = await readJson(req);
-  const displayName = typeof name === 'string' ? name.replace(/\p{C}/gu, '').trim().slice(0, 24) : '';
+  const displayName = cleanDisplayName(name);
   if (!displayName) return sendJson(res, 400, { error: 'Escolha um nome.' });
 
   const accessToken = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
@@ -119,6 +125,45 @@ async function token(req, res) {
     canPublishSources: [TrackSource.MICROPHONE, TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO],
   });
   sendJson(res, 200, { token: await accessToken.toJwt() });
+}
+
+// Reached over loopback. Caddy deliberately doesn't expose this API.
+const roomService = new RoomServiceClient('http://127.0.0.1:7880', LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+
+// Memory only, so the chat never touches the disk and a restart also clears it.
+let chatMessages = [];
+
+function pruneChat() {
+  const oldest = Date.now() - CHAT_TTL_MS;
+  chatMessages = chatMessages.filter((message) => message.at > oldest).slice(-CHAT_MAX_MESSAGES);
+}
+
+setInterval(pruneChat, 60 * 60 * 1000).unref();
+
+function chatHistory(req, res) {
+  if (!hasSession(req)) return sendJson(res, 401, { error: 'Você não está logado.' });
+  pruneChat();
+  sendJson(res, 200, { messages: chatMessages });
+}
+
+async function postChat(req, res) {
+  if (!hasSession(req)) return sendJson(res, 401, { error: 'Você não está logado.' });
+
+  const { name, text } = await readJson(req);
+  const cleanName = cleanDisplayName(name);
+  // \p{Cc} and not \p{C}, which would also strip the joiners inside emoji.
+  const cleanText = typeof text === 'string' ? [...text.replace(/\p{Cc}/gu, ' ').trim()].slice(0, CHAT_MAX_LENGTH).join('') : '';
+  if (!cleanName || !cleanText) return sendJson(res, 400, { error: 'Mensagem vazia.' });
+
+  const message = { id: randomUUID(), name: cleanName, text: cleanText, at: Date.now() };
+  chatMessages.push(message);
+  pruneChat();
+
+  // A failure here only costs live delivery, because history still has the message.
+  await roomService
+    .sendData(ROOM, new TextEncoder().encode(JSON.stringify(message)), DataPacket_Kind.RELIABLE, { topic: CHAT_TOPIC })
+    .catch((error) => console.error('chat broadcast failed', error));
+  sendJson(res, 200, { message });
 }
 
 async function serveStatic(req, res) {
@@ -142,6 +187,8 @@ const server = createServer(async (req, res) => {
     const route = `${req.method} ${req.url.split('?')[0]}`;
     if (route === 'POST /api/login') return await login(req, res);
     if (route === 'POST /api/token') return await token(req, res);
+    if (route === 'GET /api/chat') return chatHistory(req, res);
+    if (route === 'POST /api/chat') return await postChat(req, res);
     if (route === 'GET /api/session') return sendJson(res, 200, { authenticated: hasSession(req) });
     if (req.method === 'GET' || req.method === 'HEAD') return await serveStatic(req, res);
     sendJson(res, 405, { error: 'Método não permitido.' });

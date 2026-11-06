@@ -6,10 +6,12 @@ import './style.css';
 import {
   AudioPresets,
   ConnectionState,
+  type DataPacket_Kind,
   DisconnectReason,
   LocalTrackPublication,
   type Participant,
   RemoteAudioTrack,
+  type RemoteParticipant,
   type RemoteTrack,
   Room,
   RoomEvent,
@@ -29,6 +31,11 @@ const PRESETS: Preset[] = [
 const LOW_LAYER = new VideoPreset(960, 540, 1_200_000, 30);
 
 const CHROME_HIDE_MS = 2500;
+const CHAT_TOPIC = 'chat';
+const CHAT_TTL_MS = 24 * 60 * 60 * 1000;
+const CHAT_MAX_MESSAGES = 500;
+
+type ChatMessage = { id: string; name: string; text: string; at: number };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -60,6 +67,9 @@ const el = {
   banner: $('banner'),
   enableAudio: $<HTMLButtonElement>('enable-audio'),
   people: $<HTMLUListElement>('people'),
+  chatLog: $<HTMLOListElement>('chat-log'),
+  chatForm: $<HTMLFormElement>('chat-form'),
+  chatInput: $<HTMLInputElement>('chat-input'),
   micSelect: $<HTMLSelectElement>('mic-select'),
   mute: $<HTMLButtonElement>('mute'),
   muteLabel: $('mute-label'),
@@ -104,6 +114,8 @@ let streamVolume = Number(store.get('streamVolume') ?? 0.8);
 let attachedVideo: Track | undefined;
 let chromeTimer: number | undefined;
 let bannerTimer: number | undefined;
+// Keyed by id because a message can arrive both live and in a history fetch.
+const chat = new Map<string, ChatMessage>();
 
 const isSharing = (p: Participant) => !!p.getTrackPublication(Track.Source.ScreenShare);
 const everyone = (): Participant[] => [room.localParticipant, ...room.remoteParticipants.values()];
@@ -411,6 +423,78 @@ function render() {
   renderControls();
 }
 
+function renderChat() {
+  const log = el.chatLog;
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const oldest = Date.now() - CHAT_TTL_MS;
+  const messages = [...chat.values()]
+    .filter((message) => message.at > oldest)
+    .sort((a, b) => a.at - b.at)
+    .slice(-CHAT_MAX_MESSAGES);
+
+  chat.clear();
+  for (const message of messages) chat.set(message.id, message);
+
+  log.replaceChildren(
+    ...messages.map((message) => {
+      const row = document.createElement('li');
+      row.className = 'chat-message';
+      const name = document.createElement('span');
+      name.className = 'chat-name';
+      name.textContent = message.name;
+      const time = document.createElement('time');
+      time.className = 'chat-time';
+      time.textContent = new Date(message.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const text = document.createElement('div');
+      text.textContent = message.text;
+      row.append(name, time, text);
+      return row;
+    }),
+  );
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+
+function addChat(messages: ChatMessage[]) {
+  for (const message of messages) chat.set(message.id, message);
+  renderChat();
+}
+
+/** Live delivery stops during an outage, so this also fills in what was missed. */
+async function loadChat() {
+  try {
+    const { status, data } = await api<{ messages?: ChatMessage[] }>('/api/chat');
+    if (status === 200 && data.messages) addChat(data.messages);
+  } catch (error) {
+    console.warn('chat history unavailable', error);
+  }
+}
+
+async function sendChat(event: SubmitEvent) {
+  event.preventDefault();
+  const text = el.chatInput.value.trim();
+  if (!text) return;
+
+  try {
+    const { status, data } = await api<{ message?: ChatMessage; error?: string }>('/api/chat', {
+      name: room.localParticipant.name,
+      text,
+    });
+    if (status !== 200 || !data.message) return showBanner(data.error ?? 'Não foi possível enviar a mensagem.');
+    // Only cleared on success, so a failed send can be retried.
+    if (el.chatInput.value.trim() === text) el.chatInput.value = '';
+    addChat([data.message]);
+    el.chatLog.scrollTop = el.chatLog.scrollHeight;
+  } catch (error) {
+    console.warn('chat send failed', error);
+    showBanner('Não foi possível enviar a mensagem.');
+  }
+}
+
+function onDataReceived(payload: Uint8Array, _participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) {
+  if (topic !== CHAT_TOPIC) return;
+  addChat([JSON.parse(new TextDecoder().decode(payload)) as ChatMessage]);
+}
+
 function applyAudioOutput() {
   for (const participant of room.remoteParticipants.values()) {
     for (const publication of participant.audioTrackPublications.values()) {
@@ -499,11 +583,16 @@ room
   })
   .on(RoomEvent.ConnectionStateChanged, (state) => {
     if (state === ConnectionState.Reconnecting) showBanner('Conexão perdida. Reconectando…', true);
-    if (state === ConnectionState.Connected) el.banner.hidden = true;
+    if (state === ConnectionState.Connected) {
+      el.banner.hidden = true;
+      void loadChat();
+    }
   })
+  .on(RoomEvent.DataReceived, onDataReceived)
   .on(RoomEvent.Disconnected, onDisconnected);
 
 el.gateForm.addEventListener('submit', join);
+el.chatForm.addEventListener('submit', sendChat);
 el.shareForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const id = new FormData(el.shareForm).get('preset');
@@ -536,6 +625,8 @@ el.streamVolume.addEventListener('input', () => {
 document.addEventListener('keydown', (event) => {
   if (el.room.hidden || event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
   if (event.target instanceof HTMLSelectElement) return;
+  // The volume slider is an input too, and shortcuts should keep working there.
+  if (event.target === el.chatInput) return;
   const actions: Record<string, () => void> = {
     m: () => void toggleMute(),
     d: () => void toggleDeafen(),

@@ -38,6 +38,7 @@ h1,
 h2,
 p,
 ul,
+ol,
 fieldset {
   margin: 0;
   padding: 0;
@@ -392,8 +393,8 @@ video {
 }
 
 .people {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  max-height: 30%;
   overflow-y: auto;
   list-style: none;
   padding: 6px 0;
@@ -434,6 +435,55 @@ video {
   font-weight: 600;
 }
 
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.chat-message + .chat-message {
+  margin-top: 6px;
+}
+
+.chat-name {
+  font-weight: 600;
+}
+
+.chat-time {
+  margin-left: 6px;
+  font: 400 11px var(--mono);
+  color: var(--muted);
+}
+
+.chat-form {
+  padding: 0 16px 12px;
+}
+
+.chat-form input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.chat-form input::placeholder {
+  color: var(--muted);
+}
+
 .controls {
   display: grid;
   gap: 10px;
@@ -460,6 +510,16 @@ video {
   .rail {
     border-left: 0;
     border-top: 1px solid var(--line);
+    overflow-y: auto;
+  }
+
+  .people {
+    max-height: 104px;
+  }
+
+  .chat {
+    flex: none;
+    height: 260px;
   }
 
   .volume > span,

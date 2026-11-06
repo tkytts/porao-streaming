@@ -80,6 +80,11 @@ themselves back. Very old versions don't support this and will echo.
 The stream starts soft and sharpens within about 30 seconds as the connection
 ramps up.
 
+## Chat
+
+Messages live only in the app's memory, so the chat uses no disk. Each one disappears
+after 24 hours, only the latest 500 are kept, and restarting the app clears them all.
+
 ## Bandwidth
 
 The host's upload is the limit, at roughly the stream bitrate per viewer. Five viewers

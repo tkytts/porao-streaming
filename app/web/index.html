@@ -71,6 +71,12 @@
         <p id="banner" class="banner" role="status" hidden></p>
         <button id="enable-audio" class="banner banner-action" type="button" hidden>O som está bloqueado. Clique para ativar.</button>
         <ul id="people" class="people"></ul>
+        <section class="chat" aria-label="Chat">
+          <ol id="chat-log" class="chat-log"></ol>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Mensagem" aria-label="Mensagem" />
+          </form>
+        </section>
         <div class="controls">
           <label class="field field-compact">
             <span>Microfone</span>
